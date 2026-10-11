@@ -1,0 +1,3 @@
+-keepclassmembers enum app.simplifymy.launcher.** { *; }
+-keep class app.simplifymy.launcher.core.badges.BadgeListenerService
+-keep class app.simplifymy.launcher.core.actions.LauncherAccessibilityService

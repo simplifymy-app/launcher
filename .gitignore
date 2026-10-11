@@ -1,0 +1,19 @@
+local.properties
+.gradle/
+build/
+*.iml
+.idea/
+.DS_Store
+design
+
+# Keep shared run configurations, drop per-user IDE state
+!.run/
+dist/
+screenshot.png
+keystore.properties
+*.jks
+*.md
+.kotlin/
+screenshot*.png
+scripts/
+!README.md
