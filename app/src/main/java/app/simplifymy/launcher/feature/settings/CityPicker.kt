@@ -35,6 +35,18 @@ import kotlinx.coroutines.delay
 private const val DEBOUNCE_MS = 350L
 
 @Composable
+fun rememberCitySearch(query: String, key: Any? = null): List<City> {
+    val container = LocalContext.current.container
+    val language = LocalConfiguration.current.locales[0].language
+    var results by remember(key) { mutableStateOf(emptyList<City>()) }
+    LaunchedEffect(query) {
+        delay(DEBOUNCE_MS)
+        results = container.weather.searchCities(query, language)
+    }
+    return results
+}
+
+@Composable
 fun CityPicker(
     visible: Boolean,
     onPick: (City) -> Unit,
@@ -43,16 +55,10 @@ fun CityPicker(
     current: City? = null,
     onRemove: (() -> Unit)? = null,
 ) {
-    val container = LocalContext.current.container
-    val language = LocalConfiguration.current.locales[0].language
     var query by remember(visible) { mutableStateOf("") }
-    var results by remember(visible) { mutableStateOf(emptyList<City>()) }
+    val results = rememberCitySearch(query, visible)
     val focus = remember { FocusRequester() }
     LaunchedEffect(visible) { if (visible) runCatching { delay(DEBOUNCE_MS); focus.requestFocus() } }
-    LaunchedEffect(query) {
-        delay(DEBOUNCE_MS)
-        results = container.weather.searchCities(query, language)
-    }
     BottomSheet(visible, onDismiss) {
         Column(Modifier.fillMaxWidth()) {
             SheetKicker(title)

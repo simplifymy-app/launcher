@@ -17,10 +17,14 @@ import app.simplifymy.launcher.core.weather.WeatherNow
 import app.simplifymy.launcher.core.weather.Condition
 import app.simplifymy.launcher.core.settings.WeatherIcons
 import app.simplifymy.launcher.SettingsActivity
+import app.simplifymy.launcher.WeatherActivity
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import app.simplifymy.launcher.core.weather.HourPoint
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -84,6 +88,8 @@ import app.simplifymy.launcher.ui.launcher.InkOnDark
 import app.simplifymy.launcher.ui.launcher.InkOnLight
 import app.simplifymy.launcher.ui.launcher.LocalLabelColor
 import app.simplifymy.launcher.ui.launcher.trackBounds
+import app.simplifymy.launcher.ui.launcher.degrees
+import app.simplifymy.launcher.ui.launcher.zeros
 import app.simplifymy.launcher.ui.theme.PlexMono
 import app.simplifymy.launcher.ui.theme.Radius
 import app.simplifymy.launcher.ui.theme.RoleText
@@ -114,6 +120,7 @@ enum class BuiltinWidget(val id: String, @StringRes val label: Int, val spanX: I
     ClockAlarm("clock_alarm", R.string.widget_clock_alarm, 4, 2),
     World("world", R.string.widget_world, 4, 2),
     Weather("weather", R.string.widget_weather, 2, 2, weather = true),
+    WeatherNext("weather_next", R.string.widget_weather_next, 2, 2, weather = true),
     WeatherHourly("weather_hourly", R.string.widget_weather_hourly, 4, 2, weather = true),
     WeatherForecast("weather_forecast", R.string.widget_weather_forecast, 4, 2, weather = true),
     ClockWeather("clock_weather", R.string.widget_clock_weather, 4, 2, weather = true),
@@ -131,21 +138,16 @@ enum class BuiltinWidget(val id: String, @StringRes val label: Int, val spanX: I
 }
 
 fun BuiltinWidget.tapIntent(context: Context, weather: WeatherState): Intent = when {
-    this.weather && weather !is WeatherState.Ready -> SettingsActivity.open(context, Page.Widgets)
-    this == BuiltinWidget.ClockWeather -> Intent(AlarmClock.ACTION_SHOW_ALARMS)
-    this.weather -> weatherApp(context) ?: SettingsActivity.open(context, Page.Widgets)
+    this.weather && weather !is WeatherState.Ready -> SettingsActivity.open(context, Page.Weather)
+    this.weather -> WeatherActivity.open(context)
     this == BuiltinWidget.Date -> Intent(Intent.ACTION_VIEW, CalendarContract.CONTENT_URI.buildUpon().appendPath("time").build())
     this == BuiltinWidget.Battery -> Intent(Intent.ACTION_POWER_USAGE_SUMMARY)
     else -> Intent(AlarmClock.ACTION_SHOW_ALARMS)
 }
 
-private fun weatherApp(context: Context): Intent? =
-    context.packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-        .firstOrNull { it.activityInfo.packageName.contains("weather", ignoreCase = true) }
-        ?.let { context.packageManager.getLaunchIntentForPackage(it.activityInfo.packageName) }
-
 data class WidgetStyle(val ink: Color, val highlight: Color, val weight: FontWeight, val icons: WeatherIcons = WeatherIcons.Both) {
     val soft: Color get() = ink.copy(alpha = 0.4f)
+    val secondary: Color get() = ink.copy(alpha = 0.7f)
     val rule: Color get() = ink.copy(alpha = 0.25f)
 }
 
@@ -176,22 +178,13 @@ fun BuiltinWidgetContent(widget: BuiltinWidget, modifier: Modifier = Modifier) {
         BuiltinWidget.ClockAlarm -> ClockAlarmWidget(modifier)
         BuiltinWidget.World -> WorldWidget(modifier)
         BuiltinWidget.Weather -> WeatherWidget(modifier)
+        BuiltinWidget.WeatherNext -> NextHoursWidget(modifier)
         BuiltinWidget.WeatherHourly -> HourlyWidget(modifier)
         BuiltinWidget.WeatherForecast -> ForecastWidget(modifier)
         BuiltinWidget.ClockWeather -> ClockWeatherWidget(modifier)
         BuiltinWidget.WeatherLine -> WeatherLineWidget(modifier)
         BuiltinWidget.Date -> DateWidget(modifier)
         BuiltinWidget.Battery -> BatteryWidget(modifier)
-    }
-}
-
-fun zeros(text: String, highlight: Color, colon: Color): AnnotatedString = buildAnnotatedString {
-    text.forEach { c ->
-        when (c) {
-            '0' -> withStyle(SpanStyle(color = highlight)) { append(c) }
-            ':', '°' -> withStyle(SpanStyle(color = colon)) { append(c) }
-            else -> append(c)
-        }
     }
 }
 
@@ -236,23 +229,57 @@ private fun Numerals(text: String, size: TextUnit, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun FitNumerals(text: String, modifier: Modifier = Modifier, cap: TextUnit = TextUnit.Unspecified) {
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+private fun FitNumerals(text: String, modifier: Modifier = Modifier, cap: TextUnit = TextUnit.Unspecified, alignment: Alignment = Alignment.Center) {
+    BoxWithConstraints(modifier, contentAlignment = alignment) {
         Numerals(text, LocalDensity.current.fit(text, maxWidth, maxHeight, cap))
     }
 }
 
 @Composable
-private fun Label(text: String, style: TextStyle = Simplify.type.section) {
-    val locale = LocalConfiguration.current.locales[0]
-    RoleText(if (style == Simplify.type.section) text.uppercase(locale) else text, style, color = LocalWidgetStyle.current.ink, maxLines = 1)
+private fun Label(
+    text: AnnotatedString,
+    modifier: Modifier = Modifier,
+    style: TextStyle = Simplify.type.section,
+    color: Color = LocalWidgetStyle.current.ink,
+) {
+    Text(text, modifier, color = color, style = style, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
 }
 
 @Composable
-private fun weatherLine(): String? {
-    val state by LocalContext.current.container.weather.state.collectAsState()
-    val ready = state as? WeatherState.Ready ?: return null
-    return "${ready.now.temperature}° ${stringResource(ready.now.condition.label)}"
+private fun Label(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = Simplify.type.section,
+    color: Color = LocalWidgetStyle.current.ink,
+) {
+    Label(AnnotatedString(if (style == Simplify.type.section) text.uppercase(locale()) else text), modifier, style, color)
+}
+
+@Composable
+private fun locale(): Locale = LocalConfiguration.current.locales[0]
+
+@Composable
+private fun temperatureLabel(temperature: Int, rest: String = ""): AnnotatedString {
+    val style = LocalWidgetStyle.current
+    return zeros(degrees(temperature), style.highlight, style.soft) + AnnotatedString(rest.uppercase(locale()))
+}
+
+@Composable
+private fun nowLabel(weather: WeatherState.Ready, extra: String? = null): AnnotatedString {
+    val word = conditionWord(weather.now.condition).takeIf { LocalWidgetStyle.current.icons.showWord }
+    return temperatureLabel(weather.now.temperature, listOfNotNull(word, extra).joinToString(" · ").let { if (it.isEmpty()) "" else " $it" })
+}
+
+@Composable
+private fun weatherLine(): AnnotatedString? = (weatherState() as? WeatherState.Ready)?.let { nowLabel(it) }
+
+@Composable
+private fun dateWithWeather(date: String): AnnotatedString {
+    val weather = weatherLine()
+    return buildAnnotatedString {
+        append(date.uppercase(locale()))
+        weather?.let { append("  ·  "); append(it) }
+    }
 }
 
 @Composable
@@ -307,7 +334,7 @@ private fun ClockWidget(modifier: Modifier) {
 private fun ClockDateWidget(modifier: Modifier) {
     val now = rememberNow()
     val time = hhmm(now)
-    val date = listOfNotNull(format(now, "EEE d MMM"), weatherLine()).joinToString("  ·  ")
+    val date = dateWithWeather(format(now, "EEE d MMM"))
     val label = labelHeight(Simplify.type.section)
     BoxWithConstraints(modifier.fillMaxSize().padding(Space.base)) {
         val size = LocalDensity.current.fit(time, maxWidth, maxHeight - label - 8.dp, 80.sp)
@@ -364,7 +391,7 @@ private fun SplitWidget(modifier: Modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Label(format(now, "EEEE"))
             Numerals(day, daySize)
-            Label(format(now, "LLLL"), Simplify.type.label)
+            Label(format(now, "LLLL"), style = Simplify.type.label)
             weather?.let { Label(it) }
         }
     }
@@ -448,17 +475,15 @@ private fun ClockAlarmWidget(modifier: Modifier) {
     }
 }
 
-private fun City.zone(): ZoneId? = runCatching { ZoneId.of(timezone) }.getOrNull()
-
 private fun localCityName(weatherCity: City?, zone: ZoneId): String =
-    weatherCity?.takeIf { it.zone()?.rules == zone.rules }?.name
+    weatherCity?.takeIf { it.zone?.rules == zone.rules }?.name
         ?: zone.id.substringAfterLast('/').replace('_', ' ')
 
 @Composable
 private fun WorldWidget(modifier: Modifier) {
     val now = rememberNow()
     val settings by LocalContext.current.container.settings.settings.collectAsState()
-    val other = settings.worldCity?.let { city -> city.zone()?.let { city.name to now.withZoneSameInstant(it) } }
+    val other = settings.worldCity?.let { city -> city.zone?.let { city.name to now.withZoneSameInstant(it) } }
     val style = LocalWidgetStyle.current
     val local = stringResource(R.string.widget_local)
     BoxWithConstraints(modifier.fillMaxSize().padding(Space.base)) {
@@ -484,7 +509,7 @@ private fun WorldColumn(city: String, time: ZonedDateTime, note: String, size: T
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Label(city)
         Numerals(hhmm(time), size)
-        Label("${shortDate(time)} · $note".uppercase(LocalConfiguration.current.locales[0]), Simplify.type.meta)
+        Label("${shortDate(time)} · $note".uppercase(locale()), style = Simplify.type.meta, color = LocalWidgetStyle.current.secondary)
     }
 }
 
@@ -500,13 +525,21 @@ private fun cityName(): String {
     return settings.weatherCity?.name.orEmpty()
 }
 
-private fun degrees(value: Int) = "$value°"
-
 @Composable
 private fun conditionWord(condition: Condition) = stringResource(condition.label)
 
+private fun highLow(now: WeatherNow) = "${degrees(now.high)} / ${degrees(now.low)}"
+
 @Composable
-private fun highLow(now: WeatherNow) = stringResource(R.string.widget_high_low, degrees(now.high), degrees(now.low))
+private fun hourLabel(time: TemporalAccessor): String =
+    format(time, if (DateFormat.is24HourFormat(LocalContext.current)) "HH:mm" else "h a")
+
+@Composable
+private fun largeValue(): TextStyle = Simplify.type.value.let { it.copy(fontSize = it.fontSize * LARGE_VALUE) }
+
+private const val LARGE_VALUE = 15f / 13f
+private const val LABEL_ADVANCE = 0.6f
+private val WIDGET_PADDING = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
 
 @Composable
 private fun WeatherIcon(condition: Condition, size: Dp) {
@@ -514,22 +547,16 @@ private fun WeatherIcon(condition: Condition, size: Dp) {
 }
 
 @Composable
-private fun ConditionRow(condition: Condition, iconSize: Dp = 22.dp) {
-    val icons = LocalWidgetStyle.current.icons
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (icons.showIcon) WeatherIcon(condition, iconSize)
-        if (icons.showWord) Label(conditionWord(condition), Simplify.type.label)
-    }
-}
+private fun noWeatherText(state: WeatherState): String? = when (state) {
+    WeatherState.Off -> R.string.widget_weather_off
+    WeatherState.NoCity -> R.string.widget_choose_city
+    WeatherState.Loading, is WeatherState.Ready -> null
+    WeatherState.Offline -> R.string.widget_no_connection
+}?.let { stringResource(it) }
 
 @Composable
 private fun NoWeather(state: WeatherState, modifier: Modifier = Modifier) {
-    val text = when (state) {
-        WeatherState.Off -> R.string.widget_weather_off
-        WeatherState.NoCity -> R.string.widget_choose_city
-        else -> R.string.widget_no_connection
-    }
-    Box(modifier.fillMaxSize().padding(Space.base), contentAlignment = Alignment.Center) { Label(stringResource(text)) }
+    Box(modifier.fillMaxSize().padding(Space.base), contentAlignment = Alignment.Center) { noWeatherText(state)?.let { Label(it) } }
 }
 
 @Composable
@@ -542,74 +569,77 @@ private fun WeatherContent(modifier: Modifier, content: @Composable (WeatherStat
 
 @Composable
 private fun WeatherWidget(modifier: Modifier) = WeatherContent(modifier) { weather ->
-    val temperature = degrees(weather.now.temperature)
-    val reserve = labelHeight(Simplify.type.section) + maxOf(22.dp, labelHeight(Simplify.type.label)) + labelHeight(Simplify.type.meta) + 24.dp
-    BoxWithConstraints(modifier.fillMaxSize().padding(Space.base)) {
-        val size = LocalDensity.current.fit(temperature, maxWidth, maxHeight - reserve, 72.sp)
-        Column(
-            Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-        ) {
-            Label(cityName())
-            Numerals(temperature, size)
-            ConditionRow(weather.now.condition)
-            Label(highLow(weather.now), Simplify.type.meta)
+    val style = LocalWidgetStyle.current
+    val footer = listOfNotNull(conditionWord(weather.now.condition).takeIf { style.icons.showWord }, highLow(weather.now)).joinToString(" · ")
+    Column(modifier.fillMaxSize().padding(WIDGET_PADDING), verticalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Label(cityName(), Modifier.weight(1f))
+            if (style.icons.showIcon) WeatherIcon(weather.now.condition, 22.dp)
+        }
+        FitNumerals(degrees(weather.now.temperature), Modifier.fillMaxWidth().weight(1f), cap = 72.sp, alignment = Alignment.CenterStart)
+        Label(footer, color = style.secondary)
+    }
+}
+
+@Composable
+private fun HourRow(hour: HourPoint, modifier: Modifier = Modifier) {
+    val style = LocalWidgetStyle.current
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Label(hourLabel(hour.time), Modifier.weight(1f), style = Simplify.type.value, color = style.secondary)
+        if (style.icons.showIcon) WeatherIcon(hour.condition, 18.dp)
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { Label(degrees(hour.temperature), style = largeValue()) }
+    }
+}
+
+@Composable
+private fun NextHoursWidget(modifier: Modifier) = WeatherContent(modifier) { weather ->
+    val row = labelHeight(largeValue())
+    BoxWithConstraints(modifier.fillMaxSize().padding(WIDGET_PADDING)) {
+        val count = ((maxHeight - labelHeight(Simplify.type.section)) / (row + 4.dp)).toInt().coerceIn(0, 4)
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            Label(stringResource(R.string.widget_weather_next))
+            weather.next(count, 3).forEach { HourRow(it) }
         }
     }
 }
 
 @Composable
 private fun HourlyWidget(modifier: Modifier) = WeatherContent(modifier) { weather ->
-    val temperature = degrees(weather.now.temperature)
     val style = LocalWidgetStyle.current
-    val pattern = hourPattern()
-    val locale = LocalConfiguration.current.locales[0]
-    val hourRow = labelHeight(Simplify.type.meta) + labelHeight(Simplify.type.value) + 8.dp + if (style.icons.showIcon) 24.dp else 0.dp
-    BoxWithConstraints(modifier.fillMaxSize().padding(16.dp)) {
-        val size = LocalDensity.current.fit(temperature, maxWidth * 0.5f, maxHeight - hourRow - 33.dp, 72.sp)
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Numerals(temperature, size)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Label(cityName())
-                    ConditionRow(weather.now.condition)
-                }
-            }
-            Box(Modifier.fillMaxWidth().height(Sizes.hairline).background(style.rule))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                weather.hours.forEach { hour ->
-                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        RoleText(DateTimeFormatter.ofPattern(pattern, locale).format(hour.time), Simplify.type.meta, color = style.soft, maxLines = 1)
-                        if (style.icons.showIcon) WeatherIcon(hour.condition, 20.dp)
-                        RoleText(degrees(hour.temperature), Simplify.type.value, color = style.ink, maxLines = 1)
-                    }
+    Column(modifier.fillMaxSize().padding(WIDGET_PADDING), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Label(listOf(cityName(), stringResource(R.string.widget_weather_next)).joinToString(" · "), Modifier.weight(1f))
+            Label(nowLabel(weather))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            weather.next(6, 3).forEach { hour ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Label(hourLabel(hour.time), style = Simplify.type.value, color = style.secondary)
+                    if (style.icons.showIcon) WeatherIcon(hour.condition, 22.dp)
+                    Label(degrees(hour.temperature), style = largeValue())
                 }
             }
         }
     }
 }
 
-private val FORECAST_ROW = 30.dp
-
 @Composable
 private fun ForecastWidget(modifier: Modifier) = WeatherContent(modifier) { weather ->
     val style = LocalWidgetStyle.current
-    val today = stringResource(R.string.widget_today)
-    val header = listOf(cityName(), "${degrees(weather.now.temperature)} ${conditionWord(weather.now.condition)}").joinToString(" · ")
-    val headerHeight = labelHeight(Simplify.type.section) + 6.dp
-    BoxWithConstraints(modifier.fillMaxSize().padding(16.dp)) {
-        val rows = ((maxHeight - headerHeight) / (FORECAST_ROW + 4.dp)).toInt().coerceIn(0, weather.days.size)
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
-            Box(Modifier.padding(bottom = 6.dp)) { Label(header) }
-            weather.days.take(rows).forEachIndexed { index, day ->
-                Row(Modifier.fillMaxWidth().height(FORECAST_ROW), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.width(64.dp)) { Label(if (index == 0) today else format(day.date, "EEE")) }
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (style.icons.showIcon) WeatherIcon(day.condition, 20.dp)
-                        if (style.icons.showWord) Label(conditionWord(day.condition), Simplify.type.label)
-                    }
-                    RoleText("${degrees(day.low)} / ${degrees(day.high)}", Simplify.type.value, color = style.ink, maxLines = 1)
+    val today = weather.local.toLocalDate()
+    val updated = stringResource(R.string.weather_updated, hhmm(weather.now.updated.atZone(ZoneId.systemDefault())))
+    Column(modifier.fillMaxSize().padding(WIDGET_PADDING), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Label(stringResource(R.string.widget_days, cityName()), Modifier.weight(1f))
+            Label(updated, color = style.secondary)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            weather.days.take(6).forEach { day ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Label(format(day.date, "EEE"), color = if (day.date == today) style.highlight else style.secondary)
+                    if (style.icons.showIcon) WeatherIcon(day.condition, 22.dp)
+                    Label(degrees(day.high), style = largeValue())
+                    Label(degrees(day.low), style = Simplify.type.value, color = style.ink.copy(alpha = 0.6f))
                 }
             }
         }
@@ -619,41 +649,51 @@ private fun ForecastWidget(modifier: Modifier) = WeatherContent(modifier) { weat
 @Composable
 private fun ClockWeatherWidget(modifier: Modifier) {
     val now = rememberNow()
+    val time = hhmm(now)
     val state = weatherState()
-    val city = cityName()
-    val date = shortDate(now)
-    val reserve = labelHeight(Simplify.type.section) * 2 + maxOf(22.dp, labelHeight(Simplify.type.label)) + 18.dp
-    SplitClock(now, modifier) {
-        when (state) {
-            is WeatherState.Ready -> {
-                val temperature = degrees(state.now.temperature)
-                val size = LocalDensity.current.fit(temperature, maxWidth, maxHeight - reserve, 56.sp)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Label(listOf(city, date).joinToString(" · "))
-                    Numerals(temperature, size)
-                    ConditionRow(state.now.condition)
-                    Label(highLow(state.now))
+    val style = LocalWidgetStyle.current
+    val ready = state as? WeatherState.Ready
+    val date = format(now, "EEE d MMM")
+    val condition = ready?.let { nowLabel(it) } ?: AnnotatedString(noWeatherText(state).orEmpty().uppercase(locale()))
+    val place = ready?.let { listOf(cityName(), highLow(it.now)).joinToString(" · ") }
+    val icon = ready != null && style.icons.showIcon
+    val section = Simplify.type.section
+    BoxWithConstraints(modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = Space.base)) {
+        val chars = maxOf(date.length, condition.length, place?.length ?: 0)
+        val labels = with(LocalDensity.current) { (section.fontSize * (LABEL_ADVANCE + section.letterSpacing.value) * chars).toDp() } +
+            if (icon) 22.dp else 0.dp
+        val size = LocalDensity.current.fit(time, maxWidth - labels - 18.dp, maxHeight, 80.sp)
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            Numerals(time, size)
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Label(date)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (icon) WeatherIcon(ready.now.condition, 16.dp)
+                    Label(condition)
                 }
+                place?.let { Label(it, color = style.secondary) }
             }
-            else -> NoWeather(state)
         }
     }
 }
 
 @Composable
-private fun WeatherLineWidget(modifier: Modifier) = WeatherContent(modifier) { weather ->
-    val temperature = degrees(weather.now.temperature)
+private fun WeatherLineWidget(modifier: Modifier) {
+    val now = rememberNow()
+    val state = weatherState()
     val icons = LocalWidgetStyle.current.icons
-    val title = listOfNotNull(cityName(), conditionWord(weather.now.condition).takeIf { icons.showWord }).joinToString(" · ")
-    BoxWithConstraints(modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = Space.base)) {
-        val size = LocalDensity.current.fit(temperature, maxWidth * 0.4f, maxHeight, 64.sp)
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Numerals(temperature, size)
-            if (icons.showIcon) WeatherIcon(weather.now.condition, 32.dp)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Label(title)
-                Label(highLow(weather.now))
+    Row(
+        modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = Space.base),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Label(format(now, "EEE d MMM"), Modifier.weight(1f))
+        when (state) {
+            is WeatherState.Ready -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (icons.showIcon && !icons.showWord) WeatherIcon(state.now.condition, 16.dp)
+                Label(nowLabel(state, cityName()))
             }
+            else -> noWeatherText(state)?.let { Label(it) }
         }
     }
 }
@@ -664,7 +704,7 @@ private fun DateWidget(modifier: Modifier) {
     Column(modifier.fillMaxSize().padding(Space.base), horizontalAlignment = Alignment.CenterHorizontally) {
         Label(format(now, "EEEE"))
         FitNumerals(format(now, "dd"), Modifier.fillMaxWidth().weight(1f))
-        Label(format(now, "LLLL"), Simplify.type.label)
+        Label(format(now, "LLLL"), style = Simplify.type.label)
         weatherLine()?.let { Label(it) }
     }
 }

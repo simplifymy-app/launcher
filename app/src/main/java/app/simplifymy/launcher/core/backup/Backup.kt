@@ -5,6 +5,7 @@ import android.net.Uri
 import app.simplifymy.launcher.core.settings.Settings
 import app.simplifymy.launcher.core.settings.SettingsJson
 import app.simplifymy.launcher.core.settings.SettingsStore
+import app.simplifymy.launcher.core.settings.StoredSettings
 import app.simplifymy.launcher.core.workspace.AppOverride
 import app.simplifymy.launcher.core.workspace.DrawerGroup
 import app.simplifymy.launcher.core.workspace.ItemEntity
@@ -16,7 +17,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class BackupFile(
     val version: Int = 1,
-    val settings: Settings,
+    @Serializable(with = StoredSettings::class) val settings: Settings,
     val items: List<ItemEntity>,
     val overrides: List<AppOverride>,
     val groups: List<DrawerGroup>,

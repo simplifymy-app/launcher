@@ -11,7 +11,15 @@ import app.simplifymy.launcher.ui.theme.TextScale
 import app.simplifymy.launcher.ui.theme.ThemeMode
 import app.simplifymy.launcher.util.AppIcon
 import app.simplifymy.launcher.util.Language
+import java.time.ZoneId
+import java.util.Locale
+import kotlin.math.roundToInt
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonTransformingSerializer
 
 enum class ScrollEffect(@StringRes val label: Int) {
     Simple(R.string.effect_simple),
@@ -97,12 +105,48 @@ enum class WeatherIcons(@StringRes val label: Int) {
 }
 
 @Serializable
-data class City(val name: String, val region: String, val latitude: Double, val longitude: Double, val timezone: String = "")
+data class City(
+    val name: String,
+    val region: String,
+    val latitude: Double,
+    val longitude: Double,
+    val timezone: String = "",
+    val country: String = "",
+) {
+    val key: String get() = String.format(Locale.ROOT, "%.2f,%.2f", latitude, longitude)
+    val countryName: String get() = country.ifBlank { region.substringAfterLast(", ") }
+    val zone: ZoneId? get() = runCatching { ZoneId.of(timezone) }.getOrNull()
+}
+
+const val MAX_CITIES = 10
 
 enum class TemperatureUnit(val label: String, val query: String) {
     Celsius("°C", "celsius"),
     Fahrenheit("°F", "fahrenheit"),
+    ;
+
+    val imperial: Boolean get() = this == Fahrenheit
 }
+
+enum class WindUnit(val label: String, val query: String) {
+    Kmh("km/h", "kmh"),
+    Ms("m/s", "ms"),
+    Mph("mph", "mph"),
+}
+
+enum class PressureUnit(val label: String) {
+    Hpa("hPa"),
+    Mmhg("mmHg"),
+    ;
+
+    fun of(hpa: Double): Int = (if (this == Mmhg) hpa * MMHG_PER_HPA else hpa).roundToInt()
+
+    private companion object {
+        const val MMHG_PER_HPA = 0.750062
+    }
+}
+
+val REFRESH_HOURS = listOf(1, 2, 3, 6)
 
 enum class IconShape(@StringRes val label: Int) {
     System(R.string.shape_system),
@@ -143,6 +187,7 @@ data class Settings(
     val cornerRadius: CornerRadius = CornerRadius.M,
     val language: Language = Language.System,
     val appIcon: AppIcon = AppIcon.Indigo,
+    val weatherIcon: AppIcon = AppIcon.Teal,
     val desktopColumns: Int = 5,
     val desktopRows: Int = 6,
     val desktopPages: Int = 2,
@@ -195,11 +240,46 @@ data class Settings(
     val widgetColor: WidgetColor = WidgetColor.Auto,
     val widgetWeight: WidgetWeight = WidgetWeight.Regular,
     val weather: Boolean = false,
-    val weatherCity: City? = null,
+    val weatherCities: List<City> = emptyList(),
+    val currentCity: Int = 0,
     val worldCity: City? = null,
     val weatherIcons: WeatherIcons = WeatherIcons.Both,
     val temperatureUnit: TemperatureUnit = TemperatureUnit.Celsius,
+    val windUnit: WindUnit = WindUnit.Kmh,
+    val pressureUnit: PressureUnit = PressureUnit.Hpa,
+    val weatherRefresh: Int = 2,
     val hideStatusBar: Boolean = false,
     val orientation: Orientation = Orientation.Auto,
     val revealAnimation: Boolean = true,
-)
+) {
+    val weatherCity: City? get() = weatherCities.getOrNull(currentCity) ?: weatherCities.firstOrNull()
+
+    fun hasCity(city: City): Boolean = weatherCities.any { it.key == city.key }
+
+    fun addCity(city: City): Settings =
+        if (hasCity(city) || weatherCities.size >= MAX_CITIES) this else withCities(weatherCities + city)
+
+    fun removeCity(city: City): Settings = withCities(weatherCities.filterNot { it.key == city.key })
+
+    fun moveCity(city: City, by: Int): Settings {
+        val from = weatherCities.indexOfFirst { it.key == city.key }
+        val to = from + by
+        if (from < 0 || to !in weatherCities.indices) return this
+        return withCities(weatherCities.toMutableList().apply { add(to, removeAt(from)) })
+    }
+
+    fun selectCity(city: City): Settings = copy(currentCity = weatherCities.indexOfFirst { it.key == city.key }.coerceAtLeast(0))
+
+    private fun withCities(cities: List<City>): Settings =
+        copy(weatherCities = cities, currentCity = cities.indexOfFirst { it.key == weatherCity?.key }.coerceAtLeast(0))
+}
+
+object StoredSettings : JsonTransformingSerializer<Settings>(Settings.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement {
+        val settings = element as? JsonObject ?: return element
+        val city = settings["weatherCity"] ?: return element
+        val migrated = settings - "weatherCity"
+        if ("weatherCities" in settings || city is JsonNull) return JsonObject(migrated)
+        return JsonObject(migrated + ("weatherCities" to JsonArray(listOf(city))))
+    }
+}

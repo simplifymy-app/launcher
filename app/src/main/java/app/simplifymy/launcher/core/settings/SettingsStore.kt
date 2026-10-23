@@ -29,14 +29,14 @@ class SettingsStore(context: Context, scope: CoroutineScope) {
     suspend fun update(edit: (Settings) -> Settings) {
         store.edit { prefs ->
             val current = prefs[KEY]?.let(::decode) ?: Settings()
-            prefs[KEY] = SettingsJson.encodeToString(Settings.serializer(), edit(current))
+            prefs[KEY] = SettingsJson.encodeToString(StoredSettings, edit(current))
         }
     }
 
     suspend fun replace(settings: Settings) = update { settings }
 
     private fun decode(raw: String): Settings =
-        runCatching { SettingsJson.decodeFromString(Settings.serializer(), raw) }.getOrDefault(Settings())
+        runCatching { SettingsJson.decodeFromString(StoredSettings, raw) }.getOrDefault(Settings())
 
     private companion object {
         val KEY = stringPreferencesKey("settings")

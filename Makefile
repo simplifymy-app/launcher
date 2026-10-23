@@ -20,7 +20,8 @@ run: #installs the debug build, makes it the default home app and goes home
 
 .PHONY: settings
 settings: #opens the launcher settings on the device
-	@$(ADB) shell monkey -p $(APP_ID).debug -c android.intent.category.LAUNCHER 1 >/dev/null
+	@$(ADB) shell am start -n $$($(ADB) shell cmd package query-activities --brief -a android.intent.action.MAIN \
+		-c android.intent.category.LAUNCHER $(APP_ID).debug | tr -d '\r' | grep '/' | grep -v '\.Weather' | head -1) >/dev/null
 
 .PHONY: install
 install: #installs the debug apk on the attached device

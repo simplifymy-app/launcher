@@ -45,6 +45,62 @@
             android:taskAffinity="app.simplifymy.launcher.settings"
             android:theme="@style/Theme.SimplifyLauncher" />
 
+        <activity
+            android:name=".WeatherActivity"
+            android:exported="false"
+            android:label="@string/weather_label"
+            android:taskAffinity="app.simplifymy.launcher.weather"
+            android:theme="@style/Theme.SimplifyLauncher" />
+
+        <activity-alias android:name=".WeatherTeal" android:targetActivity=".WeatherActivity"
+            android:icon="@mipmap/ic_weather_teal" android:label="@string/weather_label"
+            android:enabled="true" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".WeatherCarbon" android:targetActivity=".WeatherActivity"
+            android:icon="@mipmap/ic_weather_carbon" android:label="@string/weather_label"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".WeatherBlue" android:targetActivity=".WeatherActivity"
+            android:icon="@mipmap/ic_weather_blue" android:label="@string/weather_label"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".WeatherPurple" android:targetActivity=".WeatherActivity"
+            android:icon="@mipmap/ic_weather_purple" android:label="@string/weather_label"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".WeatherMagenta" android:targetActivity=".WeatherActivity"
+            android:icon="@mipmap/ic_weather_magenta" android:label="@string/weather_label"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".WeatherGreen" android:targetActivity=".WeatherActivity"
+            android:icon="@mipmap/ic_weather_green" android:label="@string/weather_label"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <activity-alias android:name=".Indigo" android:targetActivity=".SettingsActivity"
             android:icon="@mipmap/ic_launcher_indigo" android:label="@string/launcher_entry"
             android:enabled="true" android:exported="true">

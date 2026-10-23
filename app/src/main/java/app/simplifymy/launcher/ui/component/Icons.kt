@@ -84,6 +84,9 @@ object Icons {
             "M10 7.8A2.2 2.2 0 1 0 10 12.2A2.2 2.2 0 1 0 10 7.8M4 16L16 4",
         R.string.icon_hide,
     )
+    val Cities = SimplifyIcon("M4 5H16M4 10H16M4 15H12", R.string.weather_cities)
+    val Check = SimplifyIcon("M4.5 10.5L8 14L15.5 6", R.string.icon_added)
+    val External = SimplifyIcon("M11.5 3.5H16.5V8.5M16.5 3.5L9.5 10.5M14 11.5V16.5H3.5V6H8.5", R.string.icon_open_external)
     val Resize = SimplifyIcon("M11.5 3.5H16.5V8.5M16.5 3.5L11 9M8.5 16.5H3.5V11.5M3.5 16.5L9 11", R.string.icon_resize)
 }
 

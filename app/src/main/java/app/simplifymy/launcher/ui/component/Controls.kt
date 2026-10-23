@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -24,6 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +58,7 @@ fun Modifier.pressable(
     selected: Boolean = false,
     base: Color = Color.Transparent,
     role: Role? = Role.Button,
+    onLongClick: (() -> Unit)? = null,
 ): Modifier {
     val accent = Simplify.colors.accent
     val interaction = remember { MutableInteractionSource() }
@@ -72,7 +77,7 @@ fun Modifier.pressable(
         .clip(shape)
         .background(base)
         .background(layer)
-        .clickable(interaction, indication = null, enabled = enabled, role = role, onClick = onClick)
+        .combinedClickable(interaction, indication = null, enabled = enabled, role = role, onLongClick = onLongClick, onClick = onClick)
 }
 
 enum class ButtonKind { Primary, Secondary, Ghost, Danger }
@@ -358,25 +363,36 @@ fun InputField(
     modifier: Modifier = Modifier,
     hint: String? = null,
     focus: FocusRequester? = null,
+    icon: SimplifyIcon? = null,
+    focusRing: Boolean = false,
 ) {
-    Box(
+    var focused by remember { mutableStateOf(false) }
+    Row(
         modifier
             .fillMaxWidth()
             .height(Space.hitTarget)
             .clip(Radius.control)
             .background(Simplify.colors.surface)
+            .then(if (focusRing && focused) Modifier.border(2.dp, Simplify.colors.accent, Radius.control) else Modifier)
             .padding(horizontal = Space.toolbarInset),
-        contentAlignment = Alignment.CenterStart,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (value.isEmpty() && hint != null) RoleText(hint, Simplify.type.body, color = Simplify.colors.textFaint, maxLines = 1)
-        BasicTextField(
-            value = value,
-            onValueChange = onChange,
-            singleLine = true,
-            textStyle = Simplify.type.body.copy(color = Simplify.colors.text),
-            cursorBrush = SolidColor(Simplify.colors.accent),
-            modifier = Modifier.fillMaxWidth().then(if (focus != null) Modifier.focusRequester(focus) else Modifier),
-        )
+        icon?.let { Icon(it, tint = Simplify.colors.textMuted, size = 18.dp, decorative = true) }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (value.isEmpty() && hint != null) RoleText(hint, Simplify.type.body, color = Simplify.colors.textFaint, maxLines = 1)
+            BasicTextField(
+                value = value,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = Simplify.type.body.copy(color = Simplify.colors.text),
+                cursorBrush = SolidColor(Simplify.colors.accent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focused = it.isFocused }
+                    .then(if (focus != null) Modifier.focusRequester(focus) else Modifier),
+            )
+        }
     }
 }
 

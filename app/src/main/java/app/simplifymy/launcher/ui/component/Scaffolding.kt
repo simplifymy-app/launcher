@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.exclude
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -42,14 +44,17 @@ import app.simplifymy.launcher.ui.theme.enterTween
 import app.simplifymy.launcher.ui.theme.exitTween
 
 @Composable
-fun TopLevelBar(title: String, modifier: Modifier = Modifier, actions: BarActions = {}) {
+fun TopLevelBar(title: String, modifier: Modifier = Modifier, meta: String? = null, actions: BarActions = {}) {
     Row(
         modifier
             .fillMaxWidth()
             .padding(start = Space.screen, end = Space.toolbarInset, top = Space.section, bottom = Space.base),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RoleText(title, Simplify.type.display, modifier = Modifier.weight(1f), maxLines = 1)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.gutter)) {
+            RoleText(title, Simplify.type.display, maxLines = 1)
+            meta?.let { RoleText(it, Simplify.type.meta, color = Simplify.colors.textMuted, maxLines = 1) }
+        }
         actions()
     }
 }
@@ -116,7 +121,7 @@ fun BottomSheet(visible: Boolean, onDismiss: () -> Unit, content: @Composable ()
 }
 
 @Composable
-fun Snackbar(message: String?, modifier: Modifier = Modifier) {
+fun Snackbar(message: String?, modifier: Modifier = Modifier, action: String? = null, onAction: () -> Unit = {}) {
     var shown by remember { mutableStateOf("") }
     if (message != null) shown = message
     AnimatedVisibility(
@@ -131,11 +136,40 @@ fun Snackbar(message: String?, modifier: Modifier = Modifier) {
                 .padding(Space.screen)
                 .clip(Radius.control)
                 .background(Simplify.colors.surfaceAlt)
-                .padding(horizontal = Space.rowGap, vertical = Space.base + Space.gutter),
+                .padding(
+                    start = Space.rowGap,
+                    end = if (action == null) Space.rowGap else Space.gutter,
+                    top = if (action == null) Space.base + Space.gutter else 0.dp,
+                    bottom = if (action == null) Space.base + Space.gutter else 0.dp,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RoleText(shown, Simplify.type.body)
+            RoleText(shown, Simplify.type.body, Modifier.weight(1f))
+            action?.let {
+                Box(
+                    Modifier
+                        .defaultMinSize(minWidth = Space.hitTarget, minHeight = Space.hitTarget)
+                        .pressable(onAction, shape = Radius.control)
+                        .padding(horizontal = Space.base),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    RoleText(it.uppercase(), Simplify.type.meta, color = Simplify.colors.accent)
+                }
+            }
         }
+    }
+}
+
+@Composable
+fun EmptyState(title: String, body: String, modifier: Modifier = Modifier, action: String? = null, onAction: () -> Unit = {}) {
+    Column(
+        modifier.fillMaxSize().padding(Space.screen),
+        verticalArrangement = Arrangement.spacedBy(Space.base, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        RoleText(title, Simplify.type.title, textAlign = TextAlign.Center)
+        RoleText(body, Simplify.type.body, color = Simplify.colors.textMuted, textAlign = TextAlign.Center)
+        action?.let { SimplifyButton(it, onAction, Modifier.padding(top = Space.base), ButtonKind.Primary) }
     }
 }
 

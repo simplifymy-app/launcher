@@ -5,7 +5,21 @@ import app.simplifymy.launcher.core.search.Calculator
 import app.simplifymy.launcher.core.search.SearchEngine
 import app.simplifymy.launcher.core.settings.Settings
 import app.simplifymy.launcher.core.settings.SettingsJson
+import app.simplifymy.launcher.core.settings.City
+import app.simplifymy.launcher.core.settings.MAX_CITIES
+import app.simplifymy.launcher.core.settings.PressureUnit
+import app.simplifymy.launcher.core.settings.StoredSettings
 import app.simplifymy.launcher.core.settings.TemperatureUnit
+import app.simplifymy.launcher.core.settings.WindUnit
+import app.simplifymy.launcher.core.weather.DailyForecast
+import app.simplifymy.launcher.core.weather.SunTimes
+import app.simplifymy.launcher.core.weather.compassPoint
+import app.simplifymy.launcher.core.weather.parseDaily
+import app.simplifymy.launcher.core.weather.rainText
+import app.simplifymy.launcher.core.weather.ready
+import app.simplifymy.launcher.core.weather.slots
+import app.simplifymy.launcher.core.weather.sun
+import app.simplifymy.launcher.core.weather.visibilityText
 import app.simplifymy.launcher.core.weather.Condition
 import app.simplifymy.launcher.core.weather.HourPoint
 import app.simplifymy.launcher.core.weather.WeatherCache
@@ -21,10 +35,15 @@ import app.simplifymy.launcher.core.workspace.Occupancy
 import androidx.compose.ui.graphics.Color
 import app.simplifymy.launcher.feature.home.BuiltinWidget
 import app.simplifymy.launcher.feature.home.offsetLabel
-import app.simplifymy.launcher.feature.home.zeros
+import app.simplifymy.launcher.feature.weather.coordinates
+import app.simplifymy.launcher.feature.weather.matched
+import app.simplifymy.launcher.ui.launcher.zeros
+import app.simplifymy.launcher.util.AppIcon
+import app.simplifymy.launcher.util.IconTarget
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -84,9 +103,110 @@ class SettingsJsonTest {
         assertEquals(settings, decoded)
     }
 
+    @Test fun oneCityBecomesAListOfOne() {
+        val decoded = SettingsJson.decodeFromString(
+            StoredSettings,
+            """{"weather":true,"weatherCity":{"name":"Kyiv","region":"Kyiv, Ukraine","latitude":50.45,"longitude":30.52,"timezone":"Europe/Kyiv"}}""",
+        )
+        assertEquals(listOf("Kyiv"), decoded.weatherCities.map { it.name })
+        assertEquals("Kyiv", decoded.weatherCity?.name)
+        assertEquals("Ukraine", decoded.weatherCity?.countryName)
+    }
+
+    @Test fun noCityStaysEmpty() =
+        assertTrue(SettingsJson.decodeFromString(StoredSettings, """{"weatherCity":null}""").weatherCities.isEmpty())
+
+    @Test fun migratedSettingsRoundTrip() {
+        val settings = Settings(weatherCities = listOf(kyiv, lviv), currentCity = 1, windUnit = WindUnit.Mph, weatherRefresh = 6)
+        assertEquals(settings, SettingsJson.decodeFromString(StoredSettings, SettingsJson.encodeToString(StoredSettings, settings)))
+    }
+
     @Test fun unknownKeysFromNewerVersionsAreIgnored() {
         val decoded = SettingsJson.decodeFromString(Settings.serializer(), """{"desktopColumns":7,"somethingNew":true}""")
         assertEquals(7, decoded.desktopColumns)
+    }
+}
+
+private val kyiv = City("Kyiv", "Ukraine", 50.45, 30.52, "Europe/Kyiv", "Ukraine")
+private val lviv = City("Lviv", "Ukraine", 49.84, 24.03, "Europe/Kyiv", "Ukraine")
+private val lisbon = City("Lisbon", "Portugal", 38.72, -9.14, "Europe/Lisbon", "Portugal")
+
+class CitiesTest {
+    @Test fun theFirstCityIsCurrentAndLaterOnesAreNot() {
+        val settings = Settings().addCity(kyiv).addCity(lviv)
+        assertEquals(listOf(kyiv, lviv), settings.weatherCities)
+        assertEquals(kyiv, settings.weatherCity)
+    }
+
+    @Test fun addingTwiceChangesNothing() {
+        val settings = Settings().addCity(kyiv).addCity(lviv).selectCity(lviv)
+        assertEquals(settings, settings.addCity(kyiv))
+    }
+
+    @Test fun stopsAtTen() {
+        val full = (0 until 12).fold(Settings()) { s, i -> s.addCity(City("C$i", "", i.toDouble(), 0.0)) }
+        assertEquals(MAX_CITIES, full.weatherCities.size)
+    }
+
+    @Test fun removingKeepsTheCurrentCity() {
+        val settings = Settings().addCity(kyiv).addCity(lviv).addCity(lisbon).selectCity(lviv).removeCity(kyiv)
+        assertEquals(lviv, settings.weatherCity)
+        assertEquals(listOf(lviv, lisbon), settings.weatherCities)
+        assertEquals(lisbon, settings.removeCity(lviv).weatherCity)
+    }
+
+    @Test fun movingKeepsTheCurrentCity() {
+        val settings = Settings().addCity(kyiv).addCity(lviv).addCity(lisbon).selectCity(lisbon).moveCity(lisbon, -2)
+        assertEquals(listOf(lisbon, kyiv, lviv), settings.weatherCities)
+        assertEquals(lisbon, settings.weatherCity)
+        assertEquals(settings, settings.moveCity(lisbon, -1))
+    }
+}
+
+class UnitsTest {
+    @Test fun pressureInMillimetres() {
+        assertEquals(1016, PressureUnit.Hpa.of(1016.2))
+        assertEquals(762, PressureUnit.Mmhg.of(1016.0))
+    }
+
+    @Test fun windUnitsGoInTheRequest() =
+        assertEquals(listOf("kmh", "ms", "mph"), WindUnit.entries.map { it.query })
+
+    @Test fun compassPoints() {
+        assertEquals(listOf(0, 0, 1, 2, 4, 7, 0), listOf(0, 22, 23, 90, 180, 315, 359).map(::compassPoint))
+    }
+
+    @Test fun rainAndVisibility() {
+        assertEquals("2.1 mm", rainText(2.1, imperial = false))
+        assertEquals("0.08 in", rainText(2.1, imperial = true))
+        assertEquals("24 km", visibilityText(24_140.0, imperial = false))
+        assertEquals("15 mi", visibilityText(24_140.0, imperial = true))
+    }
+}
+
+class AddCityTest {
+    @Test fun theTypedPartIsHighlightedWherever() {
+        val spans = matched("Port Louis", "lou", Color.Blue).spanStyles
+        assertEquals(listOf(5 to 8), spans.map { it.start to it.end })
+    }
+
+    @Test fun noMatchNoHighlight() = assertTrue(matched("Porto", "xyz", Color.Blue).spanStyles.isEmpty())
+
+    @Test fun coordinatesUseTheMinusSign() =
+        assertEquals("\u221220.16, 57.50", coordinates(City("Port Louis", "", -20.16, 57.5)))
+}
+
+class IconTargetTest {
+    @Test fun aliasNamesMatchTheManifest() {
+        assertEquals(".Indigo", IconTarget.Launcher.alias(AppIcon.Indigo))
+        assertEquals(".WeatherTeal", IconTarget.Weather.alias(AppIcon.Teal))
+    }
+
+    @Test fun weatherOffersTheSixBackgroundsTealFirst() {
+        assertEquals(AppIcon.Teal, IconTarget.Weather.choices.first())
+        assertEquals(6, IconTarget.Weather.choices.size)
+        assertFalse(AppIcon.Indigo in IconTarget.Weather.choices)
+        assertEquals(AppIcon.Teal, Settings().weatherIcon)
     }
 }
 
@@ -150,6 +270,8 @@ class WeatherParseTest {
 }
 
 class ForecastTest {
+    private val sample = """{"hourly":{"time":["2026-10-11T12:00"],"temperature_2m":[14.0],"weather_code":[3]}}"""
+
     private fun point(time: String, temperature: Int, condition: Condition) = HourPoint(LocalDateTime.parse(time), temperature, condition)
 
     @Test fun dayTakesHighAndLowFromEveryHour() {
@@ -181,7 +303,7 @@ class ForecastTest {
     @Test fun daysStartTodayAndStopAtTheCount() {
         val points = (0 until 8 * 24).map { point(LocalDateTime.parse("2026-10-11T00:00").plusHours(it.toLong()).toString(), 10, Condition.Clear) }
         val days = points.daily(LocalDate.parse("2026-10-12"))
-        assertEquals(5, days.size)
+        assertEquals(6, days.size)
         assertEquals(LocalDate.parse("2026-10-12"), days.first().date)
     }
 
@@ -197,6 +319,50 @@ class ForecastTest {
         ))
         val local = cache.points(ZoneId.of("Europe/Kyiv")).map { it.time }
         assertEquals(listOf(LocalDateTime.parse("2026-10-12T00:00"), LocalDateTime.parse("2026-10-12T01:00")), local)
+    }
+
+    @Test fun slotsEveryThreeHoursSumTheRain() {
+        val points = (0 until 24).map { point(LocalDateTime.parse("2026-10-24T00:00").plusHours(it.toLong()).toString(), it, Condition.Rain) }
+            .map { it.copy(rain = 0.5, rainChance = it.temperature) }
+        val slots = points.slots(LocalDate.parse("2026-10-24"))
+        assertEquals(listOf(0, 3, 6, 9, 12, 15, 18, 21), slots.map { it.time.hour })
+        assertEquals(listOf(0, 3, 6, 9, 12, 15, 18, 21), slots.map { it.temperature })
+        assertEquals(1.5, slots.first().rain, 1e-9)
+        assertEquals(2, slots.first().rainChance)
+    }
+
+    @Test fun nextHoursStepByThree() {
+        val points = (0 until 24).map { point(LocalDateTime.parse("2026-10-23T00:00").plusHours(it.toLong()).toString(), it, Condition.Clear) }
+        assertEquals(listOf(12, 15, 18, 21), points.hourly(LocalDateTime.parse("2026-10-23T09:41"), 4, 3).map { it.time.hour })
+    }
+
+    @Test fun sixDaysInTheLocalZone() {
+        val start = LocalDateTime.parse("2026-10-23T00:00")
+        val hours = (0 until 6 * 24).map { start.plusHours(it.toLong()) }
+        val body = """{"hourly":{"time":[${hours.joinToString { "\"$it\"" }}],""" +
+            """"temperature_2m":[${hours.joinToString { "${it.hour}.0" }}],"weather_code":[${hours.joinToString { "0" }}]}}"""
+        val cache = WeatherCache("50.45,30.52", TemperatureUnit.Celsius, 0L, parseForecast(body))
+        val days = cache.ready(Instant.parse("2026-10-23T06:30:00Z"), ZoneId.of("Europe/Kyiv"))!!.days
+        assertEquals(6, days.size)
+        assertEquals(LocalDate.parse("2026-10-23"), days.first().date)
+        assertEquals(0, days.first().low)
+        assertEquals(20, days.first().high)
+        assertEquals(0, days[1].low)
+        assertEquals(23, days[1].high)
+    }
+
+    @Test fun newFieldsParseAndOldCachesStillLoad() {
+        val body = """{"hourly":{"time":["2026-10-23T06:00"],"temperature_2m":[10.2],"weather_code":[3],""" +
+            """"apparent_temperature":[8.4],"precipitation_probability":[10],"precipitation":[0.2],"wind_speed_10m":[14.0],""" +
+            """"wind_direction_10m":[315],"relative_humidity_2m":[78],"pressure_msl":[1016.0],"uv_index":[2.1],"visibility":[24000.0]},""" +
+            """"daily":{"time":["2026-10-23"],"sunrise":["2026-10-23T04:41"],"sunset":["2026-10-23T14:58"]}}"""
+        val zone = ZoneId.of("Europe/Kyiv")
+        val cache = WeatherCache("50.45,30.52", TemperatureUnit.Celsius, 0L, parseForecast(body), parseDaily(body))
+        val hour = cache.points(zone).single()
+        assertEquals(listOf(8, 10, 14, 315, 78, 2), listOf(hour.feels, hour.rainChance, hour.wind, hour.windDirection, hour.humidity, hour.uv))
+        assertEquals(SunTimes(LocalDate.parse("2026-10-23"), LocalTime.parse("07:41"), LocalTime.parse("17:58")), cache.sun(zone).single())
+        val old = cache.copy(hourly = parseForecast(sample), daily = DailyForecast())
+        assertEquals(old.hourly.temperature[0].toInt(), old.points(zone).first().feels)
     }
 
     @Test fun degreeSignIsSoftened() =

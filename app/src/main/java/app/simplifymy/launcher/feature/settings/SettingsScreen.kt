@@ -37,6 +37,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import app.simplifymy.launcher.BuildConfig
+import app.simplifymy.launcher.WeatherActivity
+import app.simplifymy.launcher.feature.weather.WeatherView
+import app.simplifymy.launcher.ui.component.Icon
+import app.simplifymy.launcher.ui.component.Icons
+import androidx.core.net.toUri
+import java.time.Duration
 import app.simplifymy.launcher.R
 import app.simplifymy.launcher.container
 import app.simplifymy.launcher.core.actions.Action
@@ -56,7 +62,11 @@ import app.simplifymy.launcher.core.settings.PageIndicator
 import app.simplifymy.launcher.core.settings.ScrollEffect
 import app.simplifymy.launcher.core.settings.SearchBarPlacement
 import app.simplifymy.launcher.core.settings.Settings
+import app.simplifymy.launcher.core.settings.MAX_CITIES
+import app.simplifymy.launcher.core.settings.PressureUnit
+import app.simplifymy.launcher.core.settings.REFRESH_HOURS
 import app.simplifymy.launcher.core.settings.TemperatureUnit
+import app.simplifymy.launcher.core.settings.WindUnit
 import app.simplifymy.launcher.core.settings.WeatherIcons
 import app.simplifymy.launcher.core.settings.WidgetColor
 import app.simplifymy.launcher.core.settings.WidgetWeight
@@ -79,6 +89,7 @@ import app.simplifymy.launcher.ui.theme.Simplify
 import app.simplifymy.launcher.ui.theme.Space
 import app.simplifymy.launcher.ui.theme.TextScale
 import app.simplifymy.launcher.ui.theme.ThemeMode
+import app.simplifymy.launcher.util.IconTarget
 import app.simplifymy.launcher.util.Language
 import java.time.LocalDate
 import java.time.ZoneId
@@ -87,7 +98,7 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class Page { Root, Desktop, Dock, Drawer, Folders, Widgets, Look, Gestures, Badges, Hidden, Groups, Backup }
+enum class Page { Root, Desktop, Dock, Drawer, Folders, Widgets, Weather, Look, Gestures, Badges, Hidden, Groups, Backup }
 
 @Composable
 fun SettingsScreen(initial: Page = Page.Root, onExit: () -> Unit) {
@@ -102,6 +113,7 @@ fun SettingsScreen(initial: Page = Page.Root, onExit: () -> Unit) {
             Page.Drawer -> DrawerPage(back) { page = it }
             Page.Folders -> FoldersPage(back)
             Page.Widgets -> WidgetsPage(back)
+            Page.Weather -> WeatherPage(back)
             Page.Look -> LookPage(back)
             Page.Gestures -> GesturesPage(back)
             Page.Badges -> BadgesPage(back)
@@ -162,6 +174,7 @@ private fun Root(open: (Page) -> Unit) {
             NavRow(R.string.page_drawer, stringResource(R.string.page_drawer_hint)) { open(Page.Drawer) }
             NavRow(R.string.page_folders, stringResource(R.string.page_folders_hint)) { open(Page.Folders) }
             NavRow(R.string.page_widgets, stringResource(R.string.page_widgets_hint)) { open(Page.Widgets) }
+            NavRow(R.string.page_weather, stringResource(R.string.page_weather_hint)) { open(Page.Weather) }
             Section(R.string.section_personalise)
             NavRow(R.string.page_look, stringResource(R.string.page_look_hint)) { open(Page.Look) }
             NavRow(R.string.page_gestures, stringResource(R.string.page_gestures_hint)) { open(Page.Gestures) }
@@ -285,9 +298,6 @@ private fun FoldersPage(back: () -> Unit) {
 @Composable
 private fun WidgetsPage(back: () -> Unit) {
     val (s, update) = settings()
-    val container = LocalContext.current.container
-    val weather by container.weather.state.collectAsState()
-    var choosingCity by remember { mutableStateOf(false) }
     var choosingWorldCity by remember { mutableStateOf(false) }
     SettingsPage(stringResource(R.string.page_widgets), back) {
         Section(R.string.section_style)
@@ -300,16 +310,57 @@ private fun WidgetsPage(back: () -> Unit) {
         ChoiceRow(R.string.weather_icons, WeatherIcons.entries, s.weatherIcons, optionLabel = { stringResource(it.label) }) { v ->
             update { it.copy(weatherIcons = v) }
         }
-        Section(R.string.weather_label)
+        Section(R.string.widget_world)
+        NavRow(R.string.widget_second_city, s.worldCity?.name ?: stringResource(R.string.weather_choose_city)) { choosingWorldCity = true }
+    }
+    CityPicker(
+        choosingWorldCity, onPick = { city -> update { it.copy(worldCity = city) } }, onDismiss = { choosingWorldCity = false },
+        title = stringResource(R.string.widget_second_city),
+        current = s.worldCity, onRemove = { update { it.copy(worldCity = null) } },
+    )
+}
+
+@Composable
+private fun WeatherPage(back: () -> Unit) {
+    val (s, update) = settings()
+    val context = LocalContext.current
+    val weather by context.container.weather.state.collectAsState()
+    var choosingCity by remember { mutableStateOf(false) }
+    SettingsPage(stringResource(R.string.page_weather), back) {
         ToggleRow(R.string.weather_label, s.weather, stringResource(R.string.weather_hint)) { on ->
             update { it.copy(weather = on) }
             if (on && s.weatherCity == null) choosingCity = true
         }
         if (s.weather) {
-            NavRow(R.string.weather_city, s.weatherCity?.name ?: stringResource(R.string.weather_choose_city)) { choosingCity = true }
-            ChoiceRow(R.string.weather_unit, TemperatureUnit.entries, s.temperatureUnit, optionLabel = { it.label }) { v ->
+            NavRow(
+                R.string.weather_cities,
+                s.weatherCity?.let { stringResource(R.string.weather_cities_hint_row, it.name, s.weatherCities.size, MAX_CITIES) }
+                    ?: stringResource(R.string.weather_choose_city),
+            ) { context.startActivity(WeatherActivity.open(context, WeatherView.Cities)) }
+            Section(R.string.section_units)
+            ChoiceRow(R.string.weather_temperature, TemperatureUnit.entries, s.temperatureUnit, optionLabel = { it.label }) { v ->
                 update { it.copy(temperatureUnit = v) }
             }
+            ChoiceRow(R.string.weather_wind, WindUnit.entries, s.windUnit, optionLabel = { it.label }) { v ->
+                update { it.copy(windUnit = v) }
+            }
+            ChoiceRow(R.string.weather_pressure, PressureUnit.entries, s.pressureUnit, optionLabel = { it.label }) { v ->
+                update { it.copy(pressureUnit = v) }
+            }
+            Section(R.string.section_data)
+            ChoiceRow(
+                R.string.weather_refresh, REFRESH_HOURS, s.weatherRefresh,
+                subline = (weather as? WeatherState.Ready)?.now?.updated?.let { last ->
+                    val clock = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+                    stringResource(R.string.weather_refresh_status, clock.format(last), clock.format(last.plus(Duration.ofHours(s.weatherRefresh.toLong()))))
+                },
+                segmented = false,
+                optionLabel = { stringResource(refreshLabel(it)) },
+            ) { v -> update { it.copy(weatherRefresh = v) } }
+            SettingsRow(
+                stringResource(R.string.weather_data), subline = stringResource(R.string.weather_data_hint),
+                onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, OPEN_METEO.toUri())) },
+            ) { Icon(Icons.External, tint = Simplify.colors.textMuted, decorative = true) }
             ValueRow(
                 stringResource(R.string.weather_status),
                 when (val w = weather) {
@@ -317,22 +368,23 @@ private fun WidgetsPage(back: () -> Unit) {
                         stringResource(R.string.weather_updated, DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()).format(w.now.updated))
                     WeatherState.NoCity -> stringResource(R.string.weather_choose_city)
                     WeatherState.Offline -> stringResource(R.string.weather_offline)
-                    WeatherState.Off -> ""
+                    WeatherState.Off, WeatherState.Loading -> ""
                 },
             )
         }
-        Section(R.string.widget_world)
-        NavRow(R.string.widget_second_city, s.worldCity?.name ?: stringResource(R.string.weather_choose_city)) { choosingWorldCity = true }
+        Section(R.string.section_weather_icon)
+        AppIconPicker(s.weatherIcon, { icon -> update { it.copy(weatherIcon = icon) } }, target = IconTarget.Weather)
     }
-    CityPicker(
-        choosingCity, onPick = { city -> update { it.copy(weatherCity = city) } }, onDismiss = { choosingCity = false },
-        current = s.weatherCity, onRemove = { update { it.copy(weatherCity = null) } },
-    )
-    CityPicker(
-        choosingWorldCity, onPick = { city -> update { it.copy(worldCity = city) } }, onDismiss = { choosingWorldCity = false },
-        title = stringResource(R.string.widget_second_city),
-        current = s.worldCity, onRemove = { update { it.copy(worldCity = null) } },
-    )
+    CityPicker(choosingCity, onPick = { city -> update { it.addCity(city) } }, onDismiss = { choosingCity = false })
+}
+
+private const val OPEN_METEO = "https://open-meteo.com"
+
+private fun refreshLabel(hours: Int): Int = when (hours) {
+    1 -> R.string.refresh_1
+    3 -> R.string.refresh_3
+    6 -> R.string.refresh_6
+    else -> R.string.refresh_2
 }
 
 @Composable

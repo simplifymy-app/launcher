@@ -22,18 +22,19 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.simplifymy.launcher.R
 import app.simplifymy.launcher.ui.theme.Radius
 import app.simplifymy.launcher.ui.theme.RoleText
 import app.simplifymy.launcher.ui.theme.Simplify
 import app.simplifymy.launcher.ui.theme.Sizes
 import app.simplifymy.launcher.ui.theme.Space
+import app.simplifymy.launcher.R
 import app.simplifymy.launcher.util.AppIcon
+import app.simplifymy.launcher.util.IconTarget
 
 private const val MASK_SCALE = 108f / 72f
 
 @Composable
-fun AppIconTile(icon: AppIcon, size: Dp, modifier: Modifier = Modifier, corner: Dp = 15.dp) {
+fun AppIconTile(icon: AppIcon, target: IconTarget, size: Dp, modifier: Modifier = Modifier, corner: Dp = 15.dp) {
     Box(
         modifier
             .size(size)
@@ -43,7 +44,7 @@ fun AppIconTile(icon: AppIcon, size: Dp, modifier: Modifier = Modifier, corner: 
         contentAlignment = Alignment.Center,
     ) {
         Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
+            painter = painterResource(target.foreground),
             contentDescription = null,
             modifier = Modifier.size(size * MASK_SCALE),
             colorFilter = ColorFilter.tint(Color.White),
@@ -52,7 +53,7 @@ fun AppIconTile(icon: AppIcon, size: Dp, modifier: Modifier = Modifier, corner: 
 }
 
 @Composable
-fun AppIconPicker(selected: AppIcon, onSelect: (AppIcon) -> Unit, modifier: Modifier = Modifier) {
+fun AppIconPicker(selected: AppIcon, onSelect: (AppIcon) -> Unit, modifier: Modifier = Modifier, target: IconTarget = IconTarget.Launcher) {
     Column(
         modifier.fillMaxWidth().padding(horizontal = Space.screen, vertical = Space.base),
         verticalArrangement = Arrangement.spacedBy(Space.rowGap),
@@ -61,7 +62,7 @@ fun AppIconPicker(selected: AppIcon, onSelect: (AppIcon) -> Unit, modifier: Modi
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Space.rowGap),
         ) {
-            AppIconTile(selected, size = 52.dp)
+            AppIconTile(selected, target, size = 52.dp)
             Column(Modifier.weight(1f)) {
                 RoleText(stringResource(selected.label), Simplify.type.body)
                 RoleText(
@@ -72,7 +73,7 @@ fun AppIconPicker(selected: AppIcon, onSelect: (AppIcon) -> Unit, modifier: Modi
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            AppIcon.entries.forEach { icon ->
+            target.choices.forEach { icon ->
                 val active = icon == selected
                 Box(
                     Modifier

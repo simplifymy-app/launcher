@@ -19,6 +19,7 @@ import app.simplifymy.launcher.ui.Themed
 import app.simplifymy.launcher.ui.theme.Simplify
 import app.simplifymy.launcher.util.AppIcon
 import app.simplifymy.launcher.util.AppIcons
+import app.simplifymy.launcher.util.IconTarget
 
 class SettingsActivity : ComponentActivity() {
     companion object {
@@ -34,7 +35,7 @@ class SettingsActivity : ComponentActivity() {
         setContent {
             Themed { settings ->
                 SystemBars(Simplify.colors.isLight)
-                ApplyIconOnLeave(settings.appIcon)
+                ApplyIconsOnLeave(settings.appIcon, settings.weatherIcon)
                 SettingsScreen(initial = intent.getStringExtra(EXTRA_PAGE)?.let { runCatching { Page.valueOf(it) }.getOrNull() } ?: Page.Root, onExit = ::finish)
             }
         }
@@ -42,12 +43,15 @@ class SettingsActivity : ComponentActivity() {
 }
 
 @Composable
-private fun ApplyIconOnLeave(icon: AppIcon) {
+private fun ApplyIconsOnLeave(launcher: AppIcon, weather: AppIcon) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
-    DisposableEffect(owner, icon) {
+    DisposableEffect(owner, launcher, weather) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) AppIcons.apply(context, icon)
+            if (event == Lifecycle.Event.ON_STOP) {
+                AppIcons.apply(context, IconTarget.Launcher, launcher)
+                AppIcons.apply(context, IconTarget.Weather, weather)
+            }
         }
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }

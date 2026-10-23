@@ -593,7 +593,7 @@ fun HomeScreen(viewModel: HomeViewModel, widgets: WidgetRequester) {
             EditSheet(edit, state, viewModel) { edit = null }
             CityPicker(
                 choosingCity,
-                onPick = { city -> scope.launch { container.settings.update { it.copy(weatherCity = city) } } },
+                onPick = { city -> scope.launch { container.settings.update { it.addCity(city) } } },
                 onDismiss = { choosingCity = false },
             )
         }
