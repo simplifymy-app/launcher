@@ -98,13 +98,14 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class Page { Root, Desktop, Dock, Drawer, Folders, Widgets, Weather, Look, Gestures, Badges, Hidden, Groups, Backup }
+enum class Page { Root, Desktop, Dock, Drawer, Folders, Widgets, Calendar, Weather, Look, Gestures, Badges, Hidden, Groups, Backup }
 
 @Composable
 fun SettingsScreen(initial: Page = Page.Root, onExit: () -> Unit) {
     var page by rememberSaveable { mutableStateOf(initial) }
-    BackHandler(page != Page.Root) { page = Page.Root }
-    val back = { if (page == Page.Root) onExit() else page = Page.Root }
+    val parent = if (page == Page.Calendar) Page.Widgets else Page.Root
+    BackHandler(page != Page.Root) { page = parent }
+    val back = { if (page == Page.Root) onExit() else page = parent }
     Box(Modifier.fillMaxSize().background(Simplify.colors.background)) {
         when (page) {
             Page.Root -> Root { page = it }
@@ -112,7 +113,8 @@ fun SettingsScreen(initial: Page = Page.Root, onExit: () -> Unit) {
             Page.Dock -> DockPage(back)
             Page.Drawer -> DrawerPage(back) { page = it }
             Page.Folders -> FoldersPage(back)
-            Page.Widgets -> WidgetsPage(back)
+            Page.Widgets -> WidgetsPage(back) { page = it }
+            Page.Calendar -> CalendarPage(back) { page = it }
             Page.Weather -> WeatherPage(back)
             Page.Look -> LookPage(back)
             Page.Gestures -> GesturesPage(back)
@@ -125,7 +127,7 @@ fun SettingsScreen(initial: Page = Page.Root, onExit: () -> Unit) {
 }
 
 @Composable
-private fun settings(): Pair<Settings, ((Settings) -> Settings) -> Unit> {
+internal fun settings(): Pair<Settings, ((Settings) -> Settings) -> Unit> {
     val container = LocalContext.current.container
     val current by container.settings.settings.collectAsState()
     val scope = rememberCoroutineScope()
@@ -133,7 +135,7 @@ private fun settings(): Pair<Settings, ((Settings) -> Settings) -> Unit> {
 }
 
 @Composable
-private fun <T> onResume(read: () -> T): T {
+internal fun <T> onResume(read: () -> T): T {
     val owner = LocalLifecycleOwner.current
     var value by remember { mutableStateOf(read()) }
     LaunchedEffect(owner) {
@@ -296,7 +298,7 @@ private fun FoldersPage(back: () -> Unit) {
 }
 
 @Composable
-private fun WidgetsPage(back: () -> Unit) {
+private fun WidgetsPage(back: () -> Unit, open: (Page) -> Unit) {
     val (s, update) = settings()
     var choosingWorldCity by remember { mutableStateOf(false) }
     SettingsPage(stringResource(R.string.page_widgets), back) {
@@ -310,6 +312,8 @@ private fun WidgetsPage(back: () -> Unit) {
         ChoiceRow(R.string.weather_icons, WeatherIcons.entries, s.weatherIcons, optionLabel = { stringResource(it.label) }) { v ->
             update { it.copy(weatherIcons = v) }
         }
+        Section(R.string.page_calendar)
+        NavRow(R.string.page_calendar, stringResource(R.string.page_calendar_hint)) { open(Page.Calendar) }
         Section(R.string.widget_world)
         NavRow(R.string.widget_second_city, s.worldCity?.name ?: stringResource(R.string.weather_choose_city)) { choosingWorldCity = true }
     }

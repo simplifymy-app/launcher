@@ -148,6 +148,24 @@ enum class PressureUnit(val label: String) {
 
 val REFRESH_HOURS = listOf(1, 2, 3, 6)
 
+val DAYS_AHEAD = listOf(1, 3, 7, 14)
+
+enum class WeekStart(@StringRes val label: Int) {
+    Auto(R.string.color_auto),
+    Monday(R.string.week_monday),
+    Sunday(R.string.week_sunday),
+}
+
+enum class CalendarColours(@StringRes val label: Int) {
+    Off(R.string.badge_none),
+    Dots(R.string.indicator_dots),
+}
+
+enum class CalendarTap(@StringRes val label: Int) {
+    Calendar(R.string.tap_calendar),
+    Agenda(R.string.tap_agenda),
+}
+
 enum class IconShape(@StringRes val label: Int) {
     System(R.string.shape_system),
     Circle(R.string.shape_circle),
@@ -248,6 +266,17 @@ data class Settings(
     val windUnit: WindUnit = WindUnit.Kmh,
     val pressureUnit: PressureUnit = PressureUnit.Hpa,
     val weatherRefresh: Int = 2,
+    val hiddenCalendars: Set<Long> = emptySet(),
+    val calendarDaysAhead: Int = 3,
+    val calendarAllDay: Boolean = true,
+    val calendarDeclined: Boolean = false,
+    val calendarLocation: Boolean = true,
+    val calendarWeather: Boolean = true,
+    val calendarForecast: Boolean = true,
+    val weekStart: WeekStart = WeekStart.Auto,
+    val calendarColours: CalendarColours = CalendarColours.Off,
+    val eventTap: CalendarTap = CalendarTap.Calendar,
+    val dayTap: CalendarTap = CalendarTap.Agenda,
     val hideStatusBar: Boolean = false,
     val orientation: Orientation = Orientation.Auto,
     val revealAnimation: Boolean = true,

@@ -87,6 +87,13 @@ object Icons {
     val Cities = SimplifyIcon("M4 5H16M4 10H16M4 15H12", R.string.weather_cities)
     val Check = SimplifyIcon("M4.5 10.5L8 14L15.5 6", R.string.icon_added)
     val External = SimplifyIcon("M11.5 3.5H16.5V8.5M16.5 3.5L9.5 10.5M14 11.5V16.5H3.5V6H8.5", R.string.icon_open_external)
+    val Calendar = SimplifyIcon(
+        "M5 4.5H15A1.5 1.5 0 0 1 16.5 6V15A1.5 1.5 0 0 1 15 16.5H5A1.5 1.5 0 0 1 3.5 15V6A1.5 1.5 0 0 1 5 4.5Z" +
+            "M3.5 8.5H16.5M7 3V6M13 3V6M7 12H9M11 12H13",
+        R.string.icon_calendar,
+    )
+    val PreviousDay = SimplifyIcon("M12.5 4L6.5 10L12.5 16", R.string.agenda_previous)
+    val NextDay = SimplifyIcon("M7.5 4L13.5 10L7.5 16", R.string.agenda_next)
     val Resize = SimplifyIcon("M11.5 3.5H16.5V8.5M16.5 3.5L11 9M8.5 16.5H3.5V11.5M3.5 16.5L9 11", R.string.icon_resize)
 }
 

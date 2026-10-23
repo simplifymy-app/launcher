@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.simplifymy.launcher.R
+import app.simplifymy.launcher.core.calendar.CalendarPanel
+import app.simplifymy.launcher.feature.calendar.CalendarPanels
 import app.simplifymy.launcher.core.actions.Action
 import app.simplifymy.launcher.core.actions.UiAction
 import app.simplifymy.launcher.core.apps.AppInfo
@@ -578,6 +580,7 @@ fun HomeScreen(viewModel: HomeViewModel, widgets: WidgetRequester) {
                     onPickBuiltin = { widget ->
                         picker = false
                         overview = false
+                        if (widget.calendar && !container.calendar.granted) container.calendarPanel.value = CalendarPanel.Access
                         if (widget.weather && !s.weather) {
                             scope.launch { container.settings.update { it.copy(weather = true) } }
                             if (s.weatherCity == null) choosingCity = true
@@ -591,6 +594,7 @@ fun HomeScreen(viewModel: HomeViewModel, widgets: WidgetRequester) {
                 )
             }
             EditSheet(edit, state, viewModel) { edit = null }
+            CalendarPanels()
             CityPicker(
                 choosingCity,
                 onPick = { city -> scope.launch { container.settings.update { it.addCity(city) } } },

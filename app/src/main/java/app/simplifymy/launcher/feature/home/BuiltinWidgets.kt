@@ -96,7 +96,10 @@ import app.simplifymy.launcher.ui.theme.RoleText
 import app.simplifymy.launcher.ui.theme.Simplify
 import app.simplifymy.launcher.ui.theme.Sizes
 import app.simplifymy.launcher.ui.theme.Space
+import app.simplifymy.launcher.feature.calendar.openDay
+import app.simplifymy.launcher.feature.calendar.openEvent
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -110,7 +113,14 @@ import kotlinx.coroutines.delay
 
 private const val PREFIX = "builtin:"
 
-enum class BuiltinWidget(val id: String, @StringRes val label: Int, val spanX: Int, val spanY: Int, val weather: Boolean = false) {
+enum class BuiltinWidget(
+    val id: String,
+    @StringRes val label: Int,
+    val spanX: Int,
+    val spanY: Int,
+    val weather: Boolean = false,
+    val calendar: Boolean = false,
+) {
     Clock("clock", R.string.widget_clock, 4, 2),
     ClockDate("clock_date", R.string.widget_clock_date, 4, 2),
     Stacked("stacked", R.string.widget_stacked, 2, 2),
@@ -119,6 +129,11 @@ enum class BuiltinWidget(val id: String, @StringRes val label: Int, val spanX: I
     Line("line", R.string.widget_line, 4, 1),
     ClockAlarm("clock_alarm", R.string.widget_clock_alarm, 4, 2),
     World("world", R.string.widget_world, 4, 2),
+    CalendarAgenda("calendar_agenda", R.string.widget_calendar_agenda, 4, 2, calendar = true),
+    CalendarClock("calendar_clock", R.string.widget_calendar_clock, 4, 2, calendar = true),
+    CalendarToday("calendar_today", R.string.widget_calendar_today, 2, 2, calendar = true),
+    CalendarNext("calendar_next", R.string.widget_calendar_next, 4, 1, calendar = true),
+    CalendarMonth("calendar_month", R.string.widget_calendar_month, 4, 3, calendar = true),
     Weather("weather", R.string.widget_weather, 2, 2, weather = true),
     WeatherNext("weather_next", R.string.widget_weather_next, 2, 2, weather = true),
     WeatherHourly("weather_hourly", R.string.widget_weather_hourly, 4, 2, weather = true),
@@ -177,6 +192,11 @@ fun BuiltinWidgetContent(widget: BuiltinWidget, modifier: Modifier = Modifier) {
         BuiltinWidget.Line -> LineWidget(modifier)
         BuiltinWidget.ClockAlarm -> ClockAlarmWidget(modifier)
         BuiltinWidget.World -> WorldWidget(modifier)
+        BuiltinWidget.CalendarAgenda -> CalendarAgendaWidget(modifier)
+        BuiltinWidget.CalendarClock -> CalendarClockWidget(modifier)
+        BuiltinWidget.CalendarToday -> CalendarTodayWidget(modifier)
+        BuiltinWidget.CalendarNext -> CalendarNextWidget(modifier)
+        BuiltinWidget.CalendarMonth -> CalendarMonthWidget(modifier)
         BuiltinWidget.Weather -> WeatherWidget(modifier)
         BuiltinWidget.WeatherNext -> NextHoursWidget(modifier)
         BuiltinWidget.WeatherHourly -> HourlyWidget(modifier)
@@ -212,7 +232,7 @@ private fun numeralStyle(size: TextUnit, color: Color, weight: FontWeight) = Tex
     textAlign = TextAlign.Center,
 )
 
-private fun Density.fit(text: String, width: Dp, height: Dp, cap: TextUnit = TextUnit.Unspecified): TextUnit {
+internal fun Density.fit(text: String, width: Dp, height: Dp, cap: TextUnit = TextUnit.Unspecified): TextUnit {
     val lines = text.lines()
     val byHeight = (height / (lines.size * LINE)).coerceAtLeast(1.dp).toSp()
     val byWidth = (width / (lines.maxOf { it.length } * ADVANCE)).coerceAtLeast(1.dp).toSp()
@@ -220,23 +240,23 @@ private fun Density.fit(text: String, width: Dp, height: Dp, cap: TextUnit = Tex
 }
 
 @Composable
-private fun labelHeight(style: TextStyle): Dp = with(LocalDensity.current) { (style.fontSize * LABEL_LINE).toDp() }
+internal fun labelHeight(style: TextStyle): Dp = with(LocalDensity.current) { (style.fontSize * LABEL_LINE).toDp() }
 
 @Composable
-private fun Numerals(text: String, size: TextUnit, modifier: Modifier = Modifier) {
+internal fun Numerals(text: String, size: TextUnit, modifier: Modifier = Modifier) {
     val style = LocalWidgetStyle.current
     Text(zeros(text, style.highlight, style.soft), modifier, style = numeralStyle(size, style.ink, style.weight), softWrap = false)
 }
 
 @Composable
-private fun FitNumerals(text: String, modifier: Modifier = Modifier, cap: TextUnit = TextUnit.Unspecified, alignment: Alignment = Alignment.Center) {
+internal fun FitNumerals(text: String, modifier: Modifier = Modifier, cap: TextUnit = TextUnit.Unspecified, alignment: Alignment = Alignment.Center) {
     BoxWithConstraints(modifier, contentAlignment = alignment) {
         Numerals(text, LocalDensity.current.fit(text, maxWidth, maxHeight, cap))
     }
 }
 
 @Composable
-private fun Label(
+internal fun Label(
     text: AnnotatedString,
     modifier: Modifier = Modifier,
     style: TextStyle = Simplify.type.section,
@@ -246,7 +266,7 @@ private fun Label(
 }
 
 @Composable
-private fun Label(
+internal fun Label(
     text: String,
     modifier: Modifier = Modifier,
     style: TextStyle = Simplify.type.section,
@@ -256,10 +276,10 @@ private fun Label(
 }
 
 @Composable
-private fun locale(): Locale = LocalConfiguration.current.locales[0]
+internal fun locale(): Locale = LocalConfiguration.current.locales[0]
 
 @Composable
-private fun temperatureLabel(temperature: Int, rest: String = ""): AnnotatedString {
+internal fun temperatureLabel(temperature: Int, rest: String = ""): AnnotatedString {
     val style = LocalWidgetStyle.current
     return zeros(degrees(temperature), style.highlight, style.soft) + AnnotatedString(rest.uppercase(locale()))
 }
@@ -283,7 +303,7 @@ private fun dateWithWeather(date: String): AnnotatedString {
 }
 
 @Composable
-private fun rememberNow(): ZonedDateTime {
+internal fun rememberNow(): ZonedDateTime {
     var now by remember { mutableStateOf(ZonedDateTime.now()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -310,14 +330,14 @@ private fun rememberNextAlarm(): Long? {
 }
 
 @Composable
-private fun format(time: TemporalAccessor, pattern: String): String =
+internal fun format(time: TemporalAccessor, pattern: String): String =
     DateTimeFormatter.ofPattern(pattern, LocalConfiguration.current.locales[0]).format(time)
 
 @Composable
 private fun hourPattern(): String = if (DateFormat.is24HourFormat(LocalContext.current)) "HH" else "hh"
 
 @Composable
-private fun hhmm(time: TemporalAccessor): String = format(time, hourPattern() + ":mm")
+internal fun hhmm(time: TemporalAccessor): String = format(time, hourPattern() + ":mm")
 
 @Composable
 private fun stacked(time: TemporalAccessor): String = format(time, hourPattern() + "\nmm")
@@ -514,21 +534,21 @@ private fun WorldColumn(city: String, time: ZonedDateTime, note: String, size: T
 }
 
 @Composable
-private fun weatherState(): WeatherState {
+internal fun weatherState(): WeatherState {
     val state by LocalContext.current.container.weather.state.collectAsState()
     return state
 }
 
 @Composable
-private fun cityName(): String {
+internal fun cityName(): String {
     val settings by LocalContext.current.container.settings.settings.collectAsState()
     return settings.weatherCity?.name.orEmpty()
 }
 
 @Composable
-private fun conditionWord(condition: Condition) = stringResource(condition.label)
+internal fun conditionWord(condition: Condition) = stringResource(condition.label)
 
-private fun highLow(now: WeatherNow) = "${degrees(now.high)} / ${degrees(now.low)}"
+internal fun highLow(now: WeatherNow) = "${degrees(now.high)} / ${degrees(now.low)}"
 
 @Composable
 private fun hourLabel(time: TemporalAccessor): String =
@@ -538,11 +558,11 @@ private fun hourLabel(time: TemporalAccessor): String =
 private fun largeValue(): TextStyle = Simplify.type.value.let { it.copy(fontSize = it.fontSize * LARGE_VALUE) }
 
 private const val LARGE_VALUE = 15f / 13f
-private const val LABEL_ADVANCE = 0.6f
-private val WIDGET_PADDING = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+internal const val LABEL_ADVANCE = 0.6f
+internal val WIDGET_PADDING = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
 
 @Composable
-private fun WeatherIcon(condition: Condition, size: Dp) {
+internal fun WeatherIcon(condition: Condition, size: Dp) {
     Icon(condition.icon, tint = LocalWidgetStyle.current.ink, size = size)
 }
 
@@ -756,14 +776,27 @@ fun BuiltinWidgetItem(widget: BuiltinWidget, item: ItemEntity, host: ItemHost, m
     val container = context.container
     val bounds = remember { BoundsRef() }
     val settings by container.settings.settings.collectAsState()
-    CompositionLocalProvider(LocalWidgetStyle provides widgetStyle(settings, LocalLabelColor.current)) {
+    CompositionLocalProvider(
+        LocalWidgetStyle provides widgetStyle(settings, LocalLabelColor.current),
+        LocalCalendarTaps provides remember(container) {
+            CalendarTaps(
+                event = container::openEvent,
+                day = container::openDay,
+                weather = { container.actions.start(BuiltinWidget.Weather.tapIntent(context, container.weather.state.value)) },
+                clock = { container.actions.start(BuiltinWidget.Clock.tapIntent(context, container.weather.state.value)) },
+            )
+        },
+    ) {
     BuiltinWidgetContent(
         widget,
         modifier
             .trackBounds(bounds)
             .itemGestures(
                 key = item.id,
-                onTap = { container.actions.start(widget.tapIntent(context, container.weather.state.value)) },
+                onTap = {
+                    if (widget.calendar) container.openDay(LocalDate.now())
+                    else container.actions.start(widget.tapIntent(context, container.weather.state.value))
+                },
                 onLongPress = { at -> if (!locked) host.startDrag(item, Origin.Desktop, null, bounds.rect, at) },
                 onDrag = host::dragTo,
                 onDragEnd = host::endDrag,

@@ -30,7 +30,8 @@ Pages, a dock, folders and an app drawer, with all the settings a launcher shoul
 | **Drawer** | A sheet from the bottom or top, or its own page of the home screen. Tabs, hidden apps, a letter scroller |
 | **Search** | Apps, app shortcuts, contacts and maths, from the bar on every page |
 | **Folders** | A small window above the icon or a full page, your choice |
-| **Widgets** | Sixteen built-in: clocks, world clock, weather, next hours, forecast, date, battery. Every system widget too, resizable in place |
+| **Widgets** | Twenty-one built-in: clocks, world clock, calendar, weather, next hours, forecast, date, battery. Every system widget too, resizable in place |
+| **Calendar** | Agenda, clock and calendar, today, next event and a month grid, with a day sheet and the forecast beside your plans |
 | **Weather** | Today with the next 12 hours and six days, every day in three-hour steps, up to ten cities. Its own icon in your app list |
 | **Gestures** | Swipe, pinch and double-tap, each mapped to any action |
 | **Icons** | Icon packs, icon shapes, notification dots or counts |
@@ -38,6 +39,8 @@ Pages, a dock, folders and an app drawer, with all the settings a launcher shoul
 | **Keep** | The whole layout and every setting backed up to one file |
 
 Weather is off until you pick a city by name: no location permission, no key, no account, six days of forecast kept on the phone for every city. It is the only thing that ever touches the network: the name you type goes out to look a city up, and the coordinates of the cities you keep to fetch their forecast.
+
+Calendar widgets ask for calendar access only when you place one, and only read: they never add or change events, and nothing from your calendars leaves the phone.
 
 <img src="docs/weather.png" alt="Weather for Kyiv: cloudy and 13°, the next 12 hours with a temperature line, and six days with their highs and lows" width="32%">
 
@@ -71,6 +74,7 @@ core/icons       icon packs, shape masking, cache
 core/workspace   Room: desktop, dock, folders, app overrides, drawer groups
 core/settings    one serializable Settings document in DataStore
 core/actions     gesture actions and the accessibility service behind them
+core/calendar    read-only events from the phone's calendars, month grid, agenda
 core/weather     Open-Meteo forecast and geocoding, one offline cache per city
 core/backup      JSON export and import of settings and layout
 ui/theme         Simplify tokens, shared with the other apps
@@ -78,6 +82,7 @@ feature/home     home screen, drag and drop, folders, widgets, overview
 feature/drawer   app drawer and search
 feature/settings every settings page
 feature/weather  Today, a day in three-hour steps, cities, adding a city
+feature/calendar agenda sheet and the calendar access explainer
 ```
 
 Kotlin and Jetpack Compose in a single `:app` module, manual dependency injection, no Hilt. Strings are generated for English and Ukrainian from one table, so both languages always have the same keys.

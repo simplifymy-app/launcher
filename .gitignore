@@ -15,5 +15,7 @@ keystore.properties
 *.md
 .kotlin/
 screenshot*.png
-scripts/
+scripts/*
+!scripts/bump.sh
+!scripts/run.sh
 !README.md

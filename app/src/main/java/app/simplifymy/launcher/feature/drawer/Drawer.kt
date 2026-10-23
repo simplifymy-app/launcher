@@ -572,7 +572,9 @@ fun SearchResultsList(query: String, state: HomeState, host: DrawerHost) {
             container.search.search(query, state.searchable(), state.settings.searchContacts)
         }
     }
-    LazyColumn(Modifier.fillMaxSize()) {
+    val list = rememberLazyListState()
+    LaunchedEffect(results) { list.scrollToItem(0) }
+    LazyColumn(Modifier.fillMaxSize(), state = list) {
         results.calculation?.let { value ->
             item(key = "calc") {
                 SectionHeader(stringResource(R.string.section_calculator))

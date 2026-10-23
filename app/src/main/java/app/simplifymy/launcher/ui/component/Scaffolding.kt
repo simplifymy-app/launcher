@@ -93,12 +93,13 @@ fun BottomSheet(visible: Boolean, onDismiss: () -> Unit, content: @Composable ()
     ) {
       Localized {
         Box(
-            Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars)),
+            Modifier.fillMaxSize().tapCatcher(onDismiss).windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars)),
             contentAlignment = Alignment.BottomCenter,
         ) {
         Column(
             Modifier
                 .fillMaxWidth()
+                .tapCatcher()
                 .clip(Radius.sheet)
                 .background(Simplify.colors.surfaceAlt)
                 .windowInsetsPadding(WindowInsets.navigationBars)

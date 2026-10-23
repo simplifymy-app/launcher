@@ -5,6 +5,8 @@ import android.content.Context
 import app.simplifymy.launcher.core.actions.ActionRunner
 import app.simplifymy.launcher.core.apps.AppRepository
 import app.simplifymy.launcher.core.backup.Backup
+import app.simplifymy.launcher.core.calendar.CalendarPanel
+import app.simplifymy.launcher.core.calendar.CalendarRepository
 import app.simplifymy.launcher.core.icons.IconLoader
 import app.simplifymy.launcher.core.search.SearchEngine
 import app.simplifymy.launcher.core.settings.SettingsStore
@@ -16,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -51,8 +54,10 @@ class AppContainer(context: Context) {
     val search = SearchEngine(app, apps)
     val backup = Backup(app, settings, workspace)
     val weather = WeatherRepository(app, settings, scope)
+    val calendar = CalendarRepository(app, settings, scope)
 
     val homePressed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val calendarPanel = MutableStateFlow<CalendarPanel?>(null)
 
     init {
         scope.launch {

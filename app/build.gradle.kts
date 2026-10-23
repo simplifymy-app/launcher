@@ -21,8 +21,8 @@ android {
         applicationId = "app.simplifymy.launcher"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 15
-        versionName = "1.2.0"
+        versionCode = 18
+        versionName = "1.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

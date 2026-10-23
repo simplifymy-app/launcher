@@ -12,11 +12,8 @@ help: #shows what make commands are available
 	@grep '^\S\S*: .*#' $(MAKEFILE_LIST) | sed 's/:.*#/: #/' | column -s '#' -t | sort
 
 .PHONY: run
-run: #installs the debug build, makes it the default home app and goes home
-	./gradlew :app:installDebug
-	@$(ADB) shell cmd role add-role-holder android.app.role.HOME $(APP_ID).debug
-	@$(ADB) shell input keyevent KEYCODE_HOME
-	@echo "$(APP_ID).debug is the home app"
+run: #boots an emulator if nothing is attached, installs the debug build and makes it the home app, make run AVD=Pixel_8
+	@bash scripts/run.sh $(AVD)
 
 .PHONY: settings
 settings: #opens the launcher settings on the device
@@ -80,6 +77,22 @@ lint: #runs android lint over the debug variant
 .PHONY: version
 version: #prints the current version name
 	@echo $(VERSION)
+
+.PHONY: bump-patch
+bump-patch: #bumps the patch version and the version code, 1.0.0 to 1.0.1
+	@sh scripts/bump.sh patch
+
+.PHONY: bump-minor
+bump-minor: #bumps the minor version and the version code, 1.0.3 to 1.1.0
+	@sh scripts/bump.sh minor
+
+.PHONY: bump-major
+bump-major: #bumps the major version and the version code, 1.2.3 to 2.0.0
+	@sh scripts/bump.sh major
+
+.PHONY: set-version
+set-version: #sets an exact version and bumps the code, make set-version VERSION=1.4.0
+	@sh scripts/bump.sh $(VERSION)
 
 .PHONY: clean
 clean: #removes build output and the dist directory

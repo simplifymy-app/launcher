@@ -50,6 +50,11 @@ class HomeActivity : ComponentActivity() {
         runCatching { container.widgets.host.startListening() }
     }
 
+    override fun onResume() {
+        super.onResume()
+        container.calendar.reload()
+    }
+
     override fun onStop() {
         super.onStop()
         runCatching { container.widgets.host.stopListening() }
