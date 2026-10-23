@@ -11,6 +11,9 @@
   <a href="https://github.com/simplifymy-app/launcher/releases">Changelog</a>
 </p>
 
+> [!WARNING]
+> **Experimental.** This launcher is an early, experimental project. It is provided as is, without warranty of any kind, and may lose data, break or change at any time. If you use it, you do so entirely at your own risk. See [LICENSE](LICENSE).
+
 <p align="center">
   <img src="docs/desktop.png" alt="Home screen with a line clock showing the date and the weather in Kyiv, over a geometric wallpaper" width="32%">
   <img src="docs/apps.png" alt="App drawer with a search field and every installed app in a grid" width="32%">
@@ -27,19 +30,20 @@ Pages, a dock, folders and an app drawer, with all the settings a launcher shoul
 | **Drawer** | A sheet from the bottom or top, or its own page of the home screen. Tabs, hidden apps, a letter scroller |
 | **Search** | Apps, app shortcuts, contacts and maths, from the bar on every page |
 | **Folders** | A small window above the icon or a full page, your choice |
-| **Widgets** | Fifteen built-in: clocks, world clock, weather, forecast, date, battery. Every system widget too, resizable in place |
+| **Widgets** | Sixteen built-in: clocks, world clock, weather, next hours, forecast, date, battery. Every system widget too, resizable in place |
+| **Weather** | Today with the next 12 hours and six days, every day in three-hour steps, up to ten cities. Its own icon in your app list |
 | **Gestures** | Swipe, pinch and double-tap, each mapped to any action |
 | **Icons** | Icon packs, icon shapes, notification dots or counts |
 | **Make it yours** | Light, dark or pure black, five accents, English and Ukrainian, all switching live |
 | **Keep** | The whole layout and every setting backed up to one file |
 
-Weather is off until you pick a city by name: no location permission, no key, six days of forecast kept on the phone. It is the only thing that ever touches the network.
+Weather is off until you pick a city by name: no location permission, no key, no account, six days of forecast kept on the phone for every city. It is the only thing that ever touches the network: the name you type goes out to look a city up, and the coordinates of the cities you keep to fetch their forecast.
 
-<img src="docs/widget-settings.png" alt="Widget settings: text colour, numeral weight, weather icons, city and units" width="32%">
+<img src="docs/weather.png" alt="Weather for Kyiv: cloudy and 13°, the next 12 hours with a temperature line, and six days with their highs and lows" width="32%">
 
 ## 📦 Install
 
-Not released yet — the build runs and the polish is next. Android 11 or newer.
+Experimental builds are on the [Releases](https://github.com/simplifymy-app/launcher/releases) page — use them at your own risk. Android 11 or newer.
 
 ## 🔨 Build
 
@@ -67,12 +71,19 @@ core/icons       icon packs, shape masking, cache
 core/workspace   Room: desktop, dock, folders, app overrides, drawer groups
 core/settings    one serializable Settings document in DataStore
 core/actions     gesture actions and the accessibility service behind them
-core/weather     Open-Meteo forecast and its offline cache
+core/weather     Open-Meteo forecast and geocoding, one offline cache per city
 core/backup      JSON export and import of settings and layout
 ui/theme         Simplify tokens, shared with the other apps
 feature/home     home screen, drag and drop, folders, widgets, overview
 feature/drawer   app drawer and search
 feature/settings every settings page
+feature/weather  Today, a day in three-hour steps, cities, adding a city
 ```
 
 Kotlin and Jetpack Compose in a single `:app` module, manual dependency injection, no Hilt. Strings are generated for English and Ukrainian from one table, so both languages always have the same keys.
+
+## 📄 License
+
+© 2026 Simplify my app. The source code is licensed under the [Mozilla Public License 2.0](LICENSE): you may use, change and ship it, also in closed or commercial apps, but changes to these files must stay under the MPL and be shared. It is provided as is, without warranty of any kind.
+
+Weather data comes from [Open-Meteo](https://open-meteo.com/) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), credited on the weather screen. The bundled fonts — Space Grotesk, Outfit, IBM Plex Sans and IBM Plex Mono — are under the SIL Open Font License 1.1.
